@@ -335,9 +335,12 @@ float mixValue = 0.4f;
 
 
 //camera
-glm::vec3 cameraPos = glm::vec3(0.0f, 4.0f, 35.0f);
+glm::vec3 cameraPos = glm::vec3(0.0f, 44.0f, 65.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+glm::vec3 FlyPos = glm::vec3(10.0f, 50, 10.0f);
+float Flyangle = -90.0f;
 
 // время для обработки кадров
 float deltaTime = 0.0f;
@@ -553,7 +556,7 @@ void Init()
 
 void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
 {
-    glm::mat4 view = glm::mat4(1.0f);
+    glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     glm::mat4 model = glm::mat4(1.0f);
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 200.0f);
     switch (mode)
@@ -570,7 +573,7 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
         model = glm::translate(model, glm::vec3(0.0f, 0, 0.0f));
 
         model = glm::rotate(model, clock.getElapsedTime().asSeconds() * glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
-        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        //view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
         //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
 
@@ -594,7 +597,7 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
         model = glm::translate(model, glm::vec3(7.0f, 0, 0.0f));
 
         model = glm::rotate(model,  glm::radians(angle), glm::vec3(1.0f, 0.0f, 0.0f));
-        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+       // view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
         //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
 
@@ -612,13 +615,13 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
 
         glUseProgram(Tree_mode); // Устанавливаем шейдерную программу текущей
 
-        float angle = -90.0f;
+
 
         model = glm::scale(model, glm::vec3(0.5f, 0.5f, 0.5f));
-        model = glm::translate(model, glm::vec3(10.0f, 50, 10.0f));
+        model = glm::translate(model, FlyPos);
 
-        model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.0f, 0.0f));
-        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        model = glm::rotate(model, glm::radians(Flyangle), glm::vec3(1.0f, 0.0f, 0.0f));
+        //view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
         //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
 
@@ -643,7 +646,7 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
             model = glm::translate(model, glm::vec3(15.0f, 5, 5.0f));
             tmpModelMatrices[i] = modelMatrices[i] * modelMatricesToCenter[i] * localRotateMatrices[i] * glm::rotate(glm::mat4(1.0f), clock.getElapsedTime().asSeconds() * glm::radians(25.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * modelMatricesToPosition[i] * model;
         }
-        view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        //view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
 
         glUniformMatrix4fv(glGetUniformLocation(Box_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
@@ -768,17 +771,55 @@ void runner() {
                 case sf::Keyboard::Escape:
                     window.close();
                     break;
-                case sf::Keyboard::W:
+                case sf::Keyboard::Up:
                     cameraPos += cameraSpeed * cameraFront;
                     break;
-                case sf::Keyboard::S:
+                case sf::Keyboard::Down:
                     cameraPos -= cameraSpeed * cameraFront;
                     break;
-                case sf::Keyboard::A:
+                case sf::Keyboard::Left:
                     cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
                     break;
-                case sf::Keyboard::D:
+                case sf::Keyboard::Right:
                     cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+                    break;
+                case sf::Keyboard::W:
+                    if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+                    {
+                        Flyangle += 1;
+                        FlyPos.z += 1;
+                    }
+                    if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
+                    {
+                        Flyangle += 1;
+                        FlyPos.z -= 1;
+                    }
+                    FlyPos.x -= 1;
+                    break;
+                case sf::Keyboard::S:
+                    FlyPos.x += 1;
+                    break;
+                case sf::Keyboard::A:
+                    if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+                    {
+                        FlyPos.x -= 1;
+                    }
+                    Flyangle += 1;
+                    FlyPos.z += 1;
+                    break;
+                case sf::Keyboard::D:
+                    if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+                    {
+                        FlyPos.x -= 1;
+                    }
+                    Flyangle -= 1;
+                    FlyPos.z -= 1;
+                    break;
+                case sf::Keyboard::E:
+                    FlyPos.y += 1;
+                    break;
+                case sf::Keyboard::Q:
+                    FlyPos.y -= 1;
                     break;
 
                 default:
