@@ -323,7 +323,7 @@ enum modeModel {
     tree,
     planet1,
     planet2,
-    simple
+    grass
 };
 
 
@@ -554,7 +554,7 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
 {
     glm::mat4 view = glm::mat4(1.0f);
     glm::mat4 model = glm::mat4(1.0f);
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 200.0f);
     switch (mode)
     {
     case (tree):
@@ -571,7 +571,7 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
         model = glm::rotate(model, clock.getElapsedTime().asSeconds() * glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
         view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
-        projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
+        //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
 
         glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
@@ -581,7 +581,7 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
         glUseProgram(0); // Отключаем шейдерную программу
     }
     break;
-    case (simple):
+    case (grass):
     {
 
 
@@ -589,13 +589,13 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
 
         float angle = -90.0f;
 
-        model = glm::scale(model, glm::vec3(0.1f, 0.1f, 0.1f));
+        model = glm::scale(model, glm::vec3(1.1f, 0.1f, 1.1f));
         model = glm::translate(model, glm::vec3(7.0f, 0, 0.0f));
 
         model = glm::rotate(model,  glm::radians(angle), glm::vec3(1.0f, 0.0f, 0.0f));
         view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
-        projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
+        //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
 
         glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
@@ -689,7 +689,7 @@ void runner() {
 
     Model centralModel("tree/source/Christmas_tree.obj");
     Model planet1_model("planet1/penguin02.fbx");
-    Model field_model("kek/10450_Rectangular_Grass_Patch_v1_iterations-2.obj");
+    Model field_model("grass/10450_Rectangular_Grass_Patch_v1_iterations-2.obj");
 
 
     //Model centralModel3("planet1/penguin02.fbx");
@@ -801,7 +801,7 @@ void runner() {
 
        Draw(clock, centralModel, tree, 1);
         Draw(clock, planet1_model, planet1, quantity);
-        Draw(clock, field_model, simple, 1);
+        Draw(clock, field_model, grass, 1);
         window.display();
     }
 }
