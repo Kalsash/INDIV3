@@ -26,6 +26,34 @@ struct Vertex {
     glm::vec2 TexCoords;
 };
 
+//режим направления или позиции
+enum dir_or_pos_label {
+    d,
+    p,
+};
+
+enum type_light_label {
+    dir,//направленный
+    point, //точечный
+    spot //прожектор
+};
+// время для обработки кадров
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
+
+//default 
+type_light_label type_light = dir;
+dir_or_pos_label repl = p;
+
+//положение света
+glm::vec3 lightPos(0.0f, 0.0f, 0.0f);
+glm::vec3 lightDirection(0.0f, 0.0f, -1.0f);
+glm::vec3 lightness(1.0f, 1.0f, 1.0f);
+float conus = 12.5f;
+
+GLuint Phong_mode;
+
+
 class Mesh {
 public:
     // mesh data
@@ -317,7 +345,6 @@ enum axis {
     NUL
 };
 
-axis ax = NUL;
 
 enum modeModel {
     tree,
@@ -345,9 +372,6 @@ float Flyangle = -90.0f;
 
 
 
-// время для обработки кадров
-float deltaTime = 0.0f;
-float lastFrame = 0.0f;
 
 //вращение
 bool firstMouse = true;
@@ -377,6 +401,30 @@ glm::mat4* localRotateMatrices;
 glm::mat4* tmpModelMatrices;
 
 
+// Исходный код вершинного шейдера для Фонга
+const char* VertexShaderPhong = R"(
+    #version 330 core
+
+    layout (location = 0) in vec3 coord_pos;
+    layout (location = 1) in vec3 normal_in;
+    layout (location = 2) in vec2 tex_coord_in;
+
+    out vec2 tex_coords;
+	out vec3 normal;
+	out vec3 frag_pos;
+
+    uniform mat4 model;
+    uniform mat4 view;
+    uniform mat4 projection;
+    
+    void main() 
+    { 
+        gl_Position = projection * view * model * vec4(coord_pos, 1.0);
+        tex_coords = tex_coord_in;
+		frag_pos = vec3(model * vec4(coord_pos, 1.0));
+		normal =  mat3(transpose(inverse(model))) * normal_in;
+    }
+    )";
 
 
 // Исходный код вершинного шейдера
@@ -420,6 +468,97 @@ const char* VertexShaderPlanet = R"(
         //coord_tex = vec2(tex_coord_in.x, 1.0f - tex_coord_in.y); //если текстуры неправильно наложились
     }
     )";
+
+const char* FragShaderPhong = R"(
+    #version 330 core
+
+	struct Light {
+		vec3 position;
+		vec3 direction; //направленный и прожекторный
+  
+		vec3 ambient;
+		vec3 diffuse;
+		vec3 specular;
+
+	//точечный (для затухания)
+		float constant;
+		float linear;
+		float quadratic;
+
+	//прожектор
+		float cutOff;
+		float outerCutOff;
+	};
+
+	uniform Light light;  
+
+    in vec2 tex_coords;
+    in vec3 frag_pos;
+    in vec3 normal;
+
+	out vec4 frag_color;
+
+    uniform sampler2D texture_diffuse1;
+	uniform vec3 viewPos;
+	uniform int shininess;
+	uniform int type_light;
+
+    void main()  
+    {
+		vec3 norm = normalize(normal);
+		vec3 lightDir;
+
+		if(type_light == 0)
+		{
+            //от источника к объекту
+			lightDir = normalize(-light.direction);  //dir
+		}
+		else
+		{
+			lightDir = normalize(light.position - frag_pos);  //point and spot
+		}
+		
+		vec3 ambient = light.ambient * texture(texture_diffuse1, tex_coords).rgb; 
+
+		float diff = max(dot(norm, lightDir), 0.0);
+		vec3 diffuse = light.diffuse * (diff * texture(texture_diffuse1, tex_coords).rgb); 
+
+		vec3 viewDir = normalize(viewPos - frag_pos);
+		vec3 reflectDir = reflect(-lightDir, norm);  
+
+		float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+		vec3 specular = light.specular * (spec * texture(texture_diffuse1, tex_coords).rgb); 
+
+		if(type_light == 1 || type_light == 2)
+		{
+			    //точечный и прожекторный
+				float distance = length(light.position - frag_pos);
+				float attenuation = 1.0 / (light.constant + light.linear * distance 
+									+ light.quadratic * (distance * distance));
+				if(type_light == 1)
+				{
+					ambient *= attenuation; //point
+				}
+				diffuse *= attenuation;
+				specular *= attenuation;   
+			    //end точечный и прожекторный
+
+				if(type_light == 2)
+				{	//прожектор
+						float theta = dot(lightDir, normalize(-light.direction)); 
+						float epsilon   = light.cutOff - light.outerCutOff;
+						float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
+
+						diffuse *= intensity;
+						specular *= intensity;
+					//end прожектор
+				}
+		}
+
+		vec3 result = (ambient + diffuse + specular);
+		frag_color = vec4(result, 1.0);
+    } 
+)";
 
 // Исходный код фрагментного шейдера
 
@@ -469,6 +608,37 @@ void ShaderLog(unsigned int shader)
     }
 
 }
+void InitShaderPhong()
+{
+    GLuint vShaderPhong = glCreateShader(GL_VERTEX_SHADER);
+    //компиляция шейдера
+    glShaderSource(vShaderPhong, 1, &VertexShaderPhong, NULL);
+    glCompileShader(vShaderPhong);
+    std::cout << "vertex shader \n";
+    ShaderLog(vShaderPhong);
+
+    GLuint fShaderPhong = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fShaderPhong, 1, &FragShaderPhong, NULL);
+    glCompileShader(fShaderPhong);
+    std::cout << "fragment shader \n";
+    // Функция печати лога шейдера
+    ShaderLog(fShaderPhong);
+    Phong_mode = glCreateProgram();
+    glAttachShader(Phong_mode, vShaderPhong);
+    glAttachShader(Phong_mode, fShaderPhong);
+    // Линкуем шейдерную программу
+    glLinkProgram(Phong_mode);
+    // Проверяем статус сборки
+    int link_ok;
+    glGetProgramiv(Phong_mode, GL_LINK_STATUS, &link_ok);
+
+    if (!link_ok)
+    {
+        std::cout << "error attach shaders \n";
+        return;
+    }
+    checkOpenGLerror();
+}
 void InitShaderTree() {
     GLuint vShaderTree = glCreateShader(GL_VERTEX_SHADER);
     //компиляция шейдера
@@ -476,6 +646,8 @@ void InitShaderTree() {
     glCompileShader(vShaderTree);
     std::cout << "vertex shader \n";
     ShaderLog(vShaderTree);
+
+
 
     GLuint fShaderTree = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fShaderTree, 1, &FragShaderTree, NULL);
@@ -539,7 +711,7 @@ void InitShaderBox()
 }
 void InitShader()
 {
-
+    InitShaderPhong();
     InitShaderTree();
     InitShaderBox();
 
@@ -555,6 +727,22 @@ void Init()
     //включаем тест глубины
     glEnable(GL_DEPTH_TEST);
 }
+void Lighting(GLint shader)
+{
+    glUniform3f(glGetUniformLocation(shader, "light.position"), lightPos.x, lightPos.y, lightPos.z);
+    glUniform3f(glGetUniformLocation(shader, "light.ambient"), 1.2f, 1.2f, 1.2f);
+    glUniform3f(glGetUniformLocation(shader, "light.diffuse"), 0.9f, 0.9f, 0.9);
+    glUniform3f(glGetUniformLocation(shader, "light.specular"), 1.0f, 1.0f, 1.0f);
+    glUniform3f(glGetUniformLocation(shader, "light.direction"), lightDirection.x, lightDirection.y, lightDirection.z);
+    glUniform1f(glGetUniformLocation(shader, "light.constant"), 1.0f);
+    glUniform1f(glGetUniformLocation(shader, "light.linear"), 0.045f);
+    glUniform1f(glGetUniformLocation(shader, "light.quadratic"), 0.0075f);
+    glUniform1f(glGetUniformLocation(shader, "light.cutOff"), glm::cos(glm::radians(conus)));
+    glUniform1f(glGetUniformLocation(shader, "light.outerCutOff"), glm::cos(glm::radians(conus * 1.4f)));
+    glUniform1i(glGetUniformLocation(shader, "shininess"), 16);
+    glUniform3f(glGetUniformLocation(shader, "viewPos"), cameraPos.x, cameraPos.y, cameraPos.z);
+    glUniform1i(glGetUniformLocation(shader, "type_light"), type_light);
+}
 
 
 void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
@@ -562,17 +750,18 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
     glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
     glm::mat4 model = glm::mat4(1.0f);
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 200.0f);
+
     switch (mode)
     {
     case (tree):
     {
 
 
-        glUseProgram(Tree_mode); // Устанавливаем шейдерную программу текущей
+        glUseProgram(Phong_mode); // Устанавливаем шейдерную программу текущей
 
         float angle = 25.0f;
 
-        model = glm::scale(model, glm::vec3(2.5f, 2.5f, 2.5f));
+        model = glm::scale(model, glm::vec3(5.5f, 5.5f, 5.5f));
         model = glm::translate(model, glm::vec3(0.0f, 0, 0.0f));
 
         model = glm::rotate(model, clock.getElapsedTime().asSeconds() * glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -580,11 +769,12 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
 
         //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
 
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-        mod.Draw(Tree_mode, count);
+        Lighting(Phong_mode);
+        mod.Draw(Phong_mode, count);
         glUseProgram(0); // Отключаем шейдерную программу
     }
     break;
@@ -592,23 +782,23 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
     {
 
 
-        glUseProgram(Tree_mode); // Устанавливаем шейдерную программу текущей
+        glUseProgram(Phong_mode); // Устанавливаем шейдерную программу текущей
 
         float angle = -90.0f;
 
         model = glm::scale(model, glm::vec3(1.1f, 0.1f, 1.1f));
         model = glm::translate(model, glm::vec3(7.0f, 0, 0.0f));
 
-        model = glm::rotate(model,  glm::radians(angle), glm::vec3(1.0f, 0.0f, 0.0f));
-       // view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.0f, 0.0f));
+        // view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
-        //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
+         //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
 
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-        mod.Draw(Tree_mode, count);
+        mod.Draw(Phong_mode, count);
         glUseProgram(0); // Отключаем шейдерную программу
     }
     break;
@@ -616,7 +806,7 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
     {
 
 
-        glUseProgram(Tree_mode); // Устанавливаем шейдерную программу текущей
+        glUseProgram(Phong_mode); // Устанавливаем шейдерную программу текущей
 
         float angle = -90.0f;
 
@@ -626,15 +816,15 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
         model = glm::translate(model, glm::vec3(R * cos(clock.getElapsedTime().asSeconds()), 0.0f, R * sin(clock.getElapsedTime().asSeconds())));
 
         model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.0f, 0.0f));
-         //view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        //view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
-         //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
+        //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
 
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-        mod.Draw(Tree_mode, count);
+        mod.Draw(Phong_mode, count);
         glUseProgram(0); // Отключаем шейдерную программу
     }
     break;
@@ -642,7 +832,7 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
     {
 
 
-        glUseProgram(Tree_mode); // Устанавливаем шейдерную программу текущей
+        glUseProgram(Phong_mode); // Устанавливаем шейдерную программу текущей
 
 
 
@@ -654,11 +844,11 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
 
         //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
 
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-        glUniformMatrix4fv(glGetUniformLocation(Tree_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-        mod.Draw(Tree_mode, count);
+        mod.Draw(Phong_mode, count);
         glUseProgram(0); // Отключаем шейдерную программу
     }
     break;
@@ -685,6 +875,7 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
         mod.Draw(Box_mode, count);
 
         glUseProgram(0); // Отключаем шейдерную программу
+        checkOpenGLerror();
 
     }
     break;
@@ -710,6 +901,7 @@ void ReleaseShader()
     // Удаляем шейдерные программы
     glDeleteProgram(Tree_mode);
     glDeleteProgram(Box_mode);
+    glDeleteProgram(Phong_mode);
 }
 
 
@@ -731,7 +923,7 @@ void runner() {
     window.setActive(true);
     glClearColor(0.529, 0.808, 0.922, 2.0);
 
-    glewInit(); 
+    glewInit();
     glGetError(); // сброс флага GL_INVALID_ENUM
 
     Init();
@@ -787,7 +979,7 @@ void runner() {
     while (window.isOpen()) {
         sf::Event event;
         while (window.pollEvent(event)) {
-  
+
             float currentFrame = static_cast<float>(clock.getElapsedTime().asSeconds());
             deltaTime = currentFrame - lastFrame;
             lastFrame = currentFrame;
@@ -897,11 +1089,11 @@ void runner() {
         glClear(GL_COLOR_BUFFER_BIT);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-       Draw(clock, centralModel, tree, 1);
-        Draw(clock, planet1_model, planet1, quantity);
+        Draw(clock, centralModel, tree, 1);
+      //  Draw(clock, planet1_model, planet1, quantity);
         Draw(clock, field_model, grass, 1);
         Draw(clock, fly_model, fly, 1);
-       Draw(clock, sleigh_model, sleigh, 1);
+        Draw(clock, sleigh_model, sleigh, 1);
         window.display();
     }
 }
