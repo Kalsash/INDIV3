@@ -353,7 +353,8 @@ enum modeModel {
     grass,
     fly,
     sleigh,
-    streetlight
+    streetlight,
+    surprise
 };
 
 
@@ -780,6 +781,32 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
         glUseProgram(0); // Отключаем шейдерную программу
     }
     break;
+    case (surprise):
+    {
+
+
+        glUseProgram(Phong_mode); // Устанавливаем шейдерную программу текущей
+
+        float angle = -90.0f;
+
+        model = glm::scale(model, glm::vec3(0.1f, 0.1f, 0.1f));
+        model = glm::translate(model, glm::vec3(120.0f, 0, 5.0f));
+
+        model = glm::rotate(model,  glm::radians(angle), glm::vec3(1.0f, 0.0f, 0.0f));
+        //view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+
+        //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
+
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
+
+        Lighting(Phong_mode);
+        //glUniform1i(glGetUniformLocation(shader, "type_light"), point);
+        mod.Draw(Phong_mode, count);
+        glUseProgram(0); // Отключаем шейдерную программу
+    }
+    break;
     case (grass):
     {
 
@@ -837,11 +864,11 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
 
         glUseProgram(Phong_mode); // Устанавливаем шейдерную программу текущей
 
-        float angle = -90.0f;
+        float angle = -100.0f;
         model = glm::scale(model, glm::vec3(2.1f, 2.1f, 2.1f));
-        model = glm::translate(model, glm::vec3(10.0f, 0.0f, 10.0f));
+        model = glm::translate(model, glm::vec3(10.0f, 0.0f, -10.0f));
 
-        //model = glm::rotate(model, glm::radians(angle), glm::vec3(1.0f, 0.0f, 0.0f));
+        model = glm::rotate(model, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
         //view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
         //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
@@ -970,6 +997,7 @@ void runner() {
     Model fly_model("helicopter/kek.obj");
     Model sleigh_model("sleigh/sl.obj");
     Model light_model("lights/l.obj");
+    Model surprise_model("surprise/s.obj");
 
 
     //Model centralModel3("planet1/penguin02.fbx");
@@ -1123,7 +1151,8 @@ void runner() {
         Draw(clock, field_model, grass, 1);
         Draw(clock, fly_model, fly, 1);
         Draw(clock, sleigh_model, sleigh, 1);
-        Draw(clock, light_model, streetlight, 1);
+        Draw(clock, light_model, streetlight, 2);
+        Draw(clock, surprise_model, surprise, 1);
         window.display();
     }
 }
