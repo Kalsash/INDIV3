@@ -635,11 +635,13 @@ void InitShaderPhong()
     int link_ok;
     glGetProgramiv(Phong_mode, GL_LINK_STATUS, &link_ok);
 
+
     if (!link_ok)
     {
         std::cout << "error attach shaders \n";
         return;
     }
+
     checkOpenGLerror();
 }
 void InitShaderTree() {
@@ -902,9 +904,21 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
         glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
         glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniform3f(glGetUniformLocation(shader, "light.position"), 20.0f, 5.0f, -15.0f);
+        glUniform3f(glGetUniformLocation(shader, "light.ambient"), 8.2f, 8.2f, 8.2f);
+        glUniform3f(glGetUniformLocation(shader, "light.diffuse"), 0.9f, 0.9f, 0.9);
+        glUniform3f(glGetUniformLocation(shader, "light.specular"), 1.0f, 1.0f, 1.0f);
+        glUniform3f(glGetUniformLocation(shader, "light.direction"), lightDirection.x, lightDirection.y, lightDirection.z);
+        glUniform1f(glGetUniformLocation(shader, "light.constant"), 1.0f);
+        glUniform1f(glGetUniformLocation(shader, "light.linear"), 0.045f);
+        glUniform1f(glGetUniformLocation(shader, "light.quadratic"), 0.0075f);
+        glUniform1f(glGetUniformLocation(shader, "light.cutOff"), glm::cos(glm::radians(conus)));
+        glUniform1f(glGetUniformLocation(shader, "light.outerCutOff"), glm::cos(glm::radians(conus * 1.4f)));
+        glUniform1i(glGetUniformLocation(shader, "shininess"), 16);
+        glUniform3f(glGetUniformLocation(shader, "viewPos"), cameraPos.x, cameraPos.y, cameraPos.z);
+        //glUniform1i(glGetUniformLocation(shader, "type_light"), type_light);
+        glUniform1i(glGetUniformLocation(shader, "type_light"), point);
 
-        Lighting(Phong_mode);
-        //glUniform1i(glGetUniformLocation(shader, "type_light"), point);
         mod.Draw(Phong_mode, count);
         glUseProgram(0); // Отключаем шейдерную программу
     }
@@ -1174,13 +1188,13 @@ void runner() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         Draw(clock, centralModel, tree, 1);
-      //  Draw(clock, planet1_model, planet1, quantity);
+        Draw(clock, planet1_model, planet1, quantity);
         Draw(clock, field_model, grass, 1);
         Draw(clock, fly_model, fly, 1);
         Draw(clock, sleigh_model, sleigh, 1);
         Draw(clock, light_model, streetlight, 2);
-        Draw(clock, surprise_model, surprise, 1);
-        Draw(clock, gifts_model, gifts, 1);
+       Draw(clock, surprise_model, surprise, 1);
+       Draw(clock, gifts_model, gifts, 1);
         window.display();
     }
 }
