@@ -429,6 +429,85 @@ const char* VertexShaderPhong = R"(
     }
     )";
 
+const char* FragShaderPhong = R"(
+    #version 330 core
+
+	struct Light {
+		vec3 position;
+		vec3 direction; //направленный и прожекторный
+  
+		vec3 ambient;
+		vec3 diffuse;
+		vec3 specular;
+
+	//точечный (для затухания)
+		float constant;
+		float linear;
+		float quadratic;
+
+	};
+
+	uniform Light light; 
+    uniform Light plight; 
+
+    in vec2 tex_coords;
+    in vec3 frag_pos;
+    in vec3 normal;
+
+	out vec4 frag_color;
+
+    uniform sampler2D texture_diffuse1;
+	uniform vec3 viewPos;
+	uniform int shininess;
+	uniform int type_light;
+
+    void main()  
+    {
+		vec3 norm = normalize(normal);
+		vec3 lightDir;
+
+        lightDir = normalize(-light.direction);  //dir
+		
+		vec3 ambient = light.ambient * texture(texture_diffuse1, tex_coords).rgb; 
+
+		float diff = max(dot(norm, lightDir), 0.0);
+		vec3 diffuse = light.diffuse * (diff * texture(texture_diffuse1, tex_coords).rgb); 
+
+		vec3 viewDir = normalize(viewPos - frag_pos);
+		vec3 reflectDir = reflect(-lightDir, norm);  
+
+		float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+		vec3 specular = light.specular * (spec * texture(texture_diffuse1, tex_coords).rgb); 
+
+       lightDir = normalize(plight.position - frag_pos);  //point and spot
+		
+		vec3 ambient2 = plight.ambient * texture(texture_diffuse1, tex_coords).rgb; 
+
+		diff = max(dot(norm, lightDir), 0.0);
+		vec3 diffuse2 = plight.diffuse * (diff * texture(texture_diffuse1, tex_coords).rgb); 
+
+		viewDir = normalize(viewPos - frag_pos);
+		reflectDir = reflect(-lightDir, norm);  
+
+		spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+		vec3 specular2 = plight.specular * (spec * texture(texture_diffuse1, tex_coords).rgb); 
+
+	  //точечный и прожекторный
+		float distance = length(plight.position - frag_pos);
+		float attenuation = 1.0 / (plight.constant + plight.linear * distance 
+									+ plight.quadratic * (distance * distance));
+		ambient *= attenuation; //point
+		diffuse2 *= attenuation;
+		specular2 *= attenuation;   
+
+         ambient += ambient2;
+         diffuse += diffuse2;
+         specular += specular2;
+		vec3 result = (ambient + diffuse + specular);
+		frag_color = vec4(result, 1.0);
+    } 
+)";
+
 
 // Исходный код вершинного шейдера
 
@@ -472,96 +551,7 @@ const char* VertexShaderPlanet = R"(
     }
     )";
 
-const char* FragShaderPhong = R"(
-    #version 330 core
 
-	struct Light {
-		vec3 position;
-		vec3 direction; //направленный и прожекторный
-  
-		vec3 ambient;
-		vec3 diffuse;
-		vec3 specular;
-
-	//точечный (для затухания)
-		float constant;
-		float linear;
-		float quadratic;
-
-	//прожектор
-		float cutOff;
-		float outerCutOff;
-	};
-
-	uniform Light light;  
-
-    in vec2 tex_coords;
-    in vec3 frag_pos;
-    in vec3 normal;
-
-	out vec4 frag_color;
-
-    uniform sampler2D texture_diffuse1;
-	uniform vec3 viewPos;
-	uniform int shininess;
-	uniform int type_light;
-
-    void main()  
-    {
-		vec3 norm = normalize(normal);
-		vec3 lightDir;
-
-		if(type_light == 0)
-		{
-            //от источника к объекту
-			lightDir = normalize(-light.direction);  //dir
-		}
-		else
-		{
-			lightDir = normalize(light.position - frag_pos);  //point and spot
-		}
-		
-		vec3 ambient = light.ambient * texture(texture_diffuse1, tex_coords).rgb; 
-
-		float diff = max(dot(norm, lightDir), 0.0);
-		vec3 diffuse = light.diffuse * (diff * texture(texture_diffuse1, tex_coords).rgb); 
-
-		vec3 viewDir = normalize(viewPos - frag_pos);
-		vec3 reflectDir = reflect(-lightDir, norm);  
-
-		float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
-		vec3 specular = light.specular * (spec * texture(texture_diffuse1, tex_coords).rgb); 
-
-		if(type_light == 1 || type_light == 2)
-		{
-			    //точечный и прожекторный
-				float distance = length(light.position - frag_pos);
-				float attenuation = 1.0 / (light.constant + light.linear * distance 
-									+ light.quadratic * (distance * distance));
-				if(type_light == 1)
-				{
-					ambient *= attenuation; //point
-				}
-				diffuse *= attenuation;
-				specular *= attenuation;   
-			    //end точечный и прожекторный
-
-				if(type_light == 2)
-				{	//прожектор
-						float theta = dot(lightDir, normalize(-light.direction)); 
-						float epsilon   = light.cutOff - light.outerCutOff;
-						float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
-
-						diffuse *= intensity;
-						specular *= intensity;
-					//end прожектор
-				}
-		}
-
-		vec3 result = (ambient + diffuse + specular);
-		frag_color = vec4(result, 1.0);
-    } 
-)";
 
 // Исходный код фрагментного шейдера
 
@@ -735,18 +725,26 @@ void Init()
 void Lighting(GLint shader)
 {
     glUniform3f(glGetUniformLocation(shader, "light.position"), lightPos.x, lightPos.y, lightPos.z);
-    glUniform3f(glGetUniformLocation(shader, "light.ambient"), 1.2f, 1.2f, 1.2f);
+    glUniform3f(glGetUniformLocation(shader, "light.ambient"), 0.2f, 0.2f, 0.2f);
     glUniform3f(glGetUniformLocation(shader, "light.diffuse"), 0.9f, 0.9f, 0.9);
     glUniform3f(glGetUniformLocation(shader, "light.specular"), 1.0f, 1.0f, 1.0f);
     glUniform3f(glGetUniformLocation(shader, "light.direction"), lightDirection.x, lightDirection.y, lightDirection.z);
     glUniform1f(glGetUniformLocation(shader, "light.constant"), 1.0f);
     glUniform1f(glGetUniformLocation(shader, "light.linear"), 0.045f);
     glUniform1f(glGetUniformLocation(shader, "light.quadratic"), 0.0075f);
-    glUniform1f(glGetUniformLocation(shader, "light.cutOff"), glm::cos(glm::radians(conus)));
-    glUniform1f(glGetUniformLocation(shader, "light.outerCutOff"), glm::cos(glm::radians(conus * 1.4f)));
     glUniform1i(glGetUniformLocation(shader, "shininess"), 16);
     glUniform3f(glGetUniformLocation(shader, "viewPos"), cameraPos.x, cameraPos.y, cameraPos.z);
     glUniform1i(glGetUniformLocation(shader, "type_light"), type_light);
+
+    glUniform3f(glGetUniformLocation(shader, "plight.position"), 20.0f, 25.0f, -5.0f);
+    glUniform3f(glGetUniformLocation(shader, "plight.ambient"), 1.2f, 1.2f, 1.2f);
+    glUniform3f(glGetUniformLocation(shader, "plight.diffuse"), 9.9f, 9.9f, 9.9);
+    glUniform3f(glGetUniformLocation(shader, "plight.specular"), 1.0f, 1.0f, 1.0f);
+    glUniform3f(glGetUniformLocation(shader, "plight.direction"), 0.0f, 0.0f, -1.0f);
+    glUniform1f(glGetUniformLocation(shader, "plight.constant"), 1.0f);
+    glUniform1f(glGetUniformLocation(shader, "plight.linear"), 0.045f);
+    glUniform1f(glGetUniformLocation(shader, "plight.quadratic"), 0.0075f);
+    //glUniform3f(glGetUniformLocation(shader, "viewPos"), cameraPos.x, cameraPos.y, cameraPos.z);
 }
 
 
@@ -854,6 +852,13 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
         glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
         glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        //glUniform3f(glGetUniformLocation(shader, "light.position"), 20.0f, 25.0f, -5.0f);
+        //glUniform3f(glGetUniformLocation(shader, "light.ambient"), 8.2f, 8.2f, 8.2f);
+        //glUniform3f(glGetUniformLocation(shader, "light.diffuse"), 16.9f, 16.9f, 16.9);
+        //glUniform3f(glGetUniformLocation(shader, "light.specular"), 1.0f, 1.0f, 1.0f);
+        //glUniform3f(glGetUniformLocation(shader, "light.direction"), 0.0f, 0.0f, -1.0f);
+        //glUniform3f(glGetUniformLocation(shader, "viewPos"), cameraPos.x, cameraPos.y, cameraPos.z);
+        //glUniform1i(glGetUniformLocation(shader, "type_light"), point);
         Lighting(Phong_mode);
         mod.Draw(Phong_mode, count);
         glUseProgram(0); // Отключаем шейдерную программу
@@ -900,16 +905,10 @@ void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
         //view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
         //projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 100.0f);
-
+        Lighting(Phong_mode);
         glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
         glUniformMatrix4fv(glGetUniformLocation(Phong_mode, "model"), 1, GL_FALSE, glm::value_ptr(model));
-        glUniform3f(glGetUniformLocation(shader, "light.position"), 20.0f, 25.0f, -5.0f);
-        glUniform3f(glGetUniformLocation(shader, "light.ambient"), 8.2f, 8.2f, 8.2f);
-        glUniform3f(glGetUniformLocation(shader, "light.diffuse"), 16.9f, 16.9f, 16.9);
-        glUniform3f(glGetUniformLocation(shader, "light.direction"), 0.0f, 0.0f, -1.0f);
-        glUniform3f(glGetUniformLocation(shader, "viewPos"), cameraPos.x, cameraPos.y, cameraPos.z);
-        glUniform1i(glGetUniformLocation(shader, "type_light"), point);
 
         mod.Draw(Phong_mode, count);
         glUseProgram(0); // Отключаем шейдерную программу
@@ -1179,13 +1178,13 @@ void runner() {
         glClear(GL_COLOR_BUFFER_BIT);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        Draw(clock, centralModel, tree, 1);
+       // Draw(clock, centralModel, tree, 1);
        // Draw(clock, planet1_model, planet1, quantity);
-        Draw(clock, field_model, grass, 1);
-        Draw(clock, fly_model, fly, 1);
-        Draw(clock, sleigh_model, sleigh, 1);
+       // Draw(clock, field_model, grass, 1);
+       // Draw(clock, fly_model, fly, 1);
+        //Draw(clock, sleigh_model, sleigh, 1);
         Draw(clock, light_model, streetlight, 2);
-       Draw(clock, surprise_model, surprise, 1);
+       //Draw(clock, surprise_model, surprise, 1);
        Draw(clock, gifts_model, gifts, 1);
         window.display();
     }
