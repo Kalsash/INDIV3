@@ -737,7 +737,7 @@ void Lighting(GLint shader)
     glUniform1i(glGetUniformLocation(shader, "type_light"), type_light);
 
     glUniform3f(glGetUniformLocation(shader, "plight.position"), 20.0f, 25.0f, -5.0f);
-    glUniform3f(glGetUniformLocation(shader, "plight.ambient"), 1.2f, 1.2f, 1.2f);
+    glUniform3f(glGetUniformLocation(shader, "plight.ambient"), 0.4f, 0.4f, 0.4f);
     glUniform3f(glGetUniformLocation(shader, "plight.diffuse"), 9.9f, 9.9f, 9.9);
     glUniform3f(glGetUniformLocation(shader, "plight.specular"), 1.0f, 1.0f, 1.0f);
     glUniform3f(glGetUniformLocation(shader, "plight.direction"), 0.0f, 0.0f, -1.0f);
@@ -1178,13 +1178,13 @@ void runner() {
         glClear(GL_COLOR_BUFFER_BIT);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-       // Draw(clock, centralModel, tree, 1);
+        Draw(clock, centralModel, tree, 1);
        // Draw(clock, planet1_model, planet1, quantity);
-       // Draw(clock, field_model, grass, 1);
-       // Draw(clock, fly_model, fly, 1);
-        //Draw(clock, sleigh_model, sleigh, 1);
+        Draw(clock, field_model, grass, 1);
+        Draw(clock, fly_model, fly, 1);
+        Draw(clock, sleigh_model, sleigh, 1);
         Draw(clock, light_model, streetlight, 2);
-       //Draw(clock, surprise_model, surprise, 1);
+       Draw(clock, surprise_model, surprise, 1);
        Draw(clock, gifts_model, gifts, 1);
         window.display();
     }
