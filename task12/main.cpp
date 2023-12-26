@@ -41,6 +41,8 @@ enum type_light_label {
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
+
+
 //default 
 type_light_label type_light = dir;
 dir_or_pos_label repl = p;
@@ -378,6 +380,7 @@ float Flyangle = -90.0f;
 
 //вращение
 bool firstMouse = true;
+int MOUSE = 0;
 float yaw = -90.0f;
 float pitch = 0.0f;
 float last_x = 450.0f;
@@ -750,7 +753,9 @@ void Lighting(GLint shader)
 
 void Draw(sf::Clock clock, Model mod, modeModel mode, int count)
 {
-    glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+    glm::mat4 view = glm::lookAt(cameraPos, glm::vec3(0.0f, 0.0f, -1.0f), cameraUp);
+    //glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+
     glm::mat4 model = glm::mat4(1.0f);
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), 900.0f / 900.0f, 0.1f, 200.0f);
     GLint shader = Phong_mode;
@@ -1140,6 +1145,7 @@ void runner() {
             }
             if (event.type == sf::Event::MouseMoved)
             {
+                MOUSE = 1;
                 float xpos = static_cast<float>(event.mouseMove.x);
                 float ypos = static_cast<float>(event.mouseMove.y);
 
